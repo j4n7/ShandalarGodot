@@ -773,9 +773,9 @@ func _after_duel(report: DuelReport) -> void:
 		_:
 			# A room lost, or the wizard's duel: the cards lost, then out.
 			view.stand()
-			_lost = out.get("lost", [])
+			_lost = []
 			_lost_shown = 0
-			_next_lost()
+			_end_visit({"relaxed_defeated": true})
 
 
 ## Whether the world screen leaves for the title once its panes are done

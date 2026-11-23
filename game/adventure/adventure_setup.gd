@@ -222,7 +222,7 @@ var life_rule := AdventurePlayer.LIFE_RELOAD
 ## THE CARD HOLD ([member AdventurePlayer.card_hold]): "1997 card hold
 ## limit" (the bag's 500) or "Unlimited card hold" — the owner's setting of
 ## 2026-10-28.
-var card_hold := AdventurePlayer.HOLD_1997
+var card_hold := AdventurePlayer.HOLD_UNLIMITED
 ## THE BAN LIST the Classic MTG rules read ([member
 ## AdventurePlayer.ban_list], [ClassicBans]) — the owner's setting of
 ## 2026-10-28; kept whatever the card rule, read only under the Classic one.
@@ -231,13 +231,13 @@ var ban_list := ClassicBans.DEFAULT
 var all_trader_cards := false
 ## THE SIEGES' PACE ([member AdventurePlayer.sieges], [Sieges]) — the
 ## owner's setting of 2026-10-28; "Steady" for a new adventure [ours].
-var sieges := AdventurePlayer.SIEGES_STEADY
+var sieges := AdventurePlayer.SIEGES_NONE
 ## THE CREATURES' WAY ([member AdventurePlayer.creatures], [WorldCreatures])
 ## — the owner's setting of 2026-10-29; "Notice" for a new adventure [ours].
 var creatures := AdventurePlayer.CREATURES_NOTICE
 ## THE DUELS' STARTING LIFE ([member AdventurePlayer.life_start]) — the
 ## owner's setting of 2026-10-29; "Links only", 1997's, for a new adventure.
-var life_start := AdventurePlayer.START_LINKS
+var life_start := AdventurePlayer.START_BASE
 ## THE ASCETIC HERO ([member AdventurePlayer.ascetic]) — the owner's
 ## setting of 2026-10-29; off, 1997's, for a new adventure.
 var ascetic := false
@@ -592,7 +592,7 @@ static func restore(installed: Array[String]) -> AdventureSetup:
 		AdventurePlayer.SIEGES_STEADY))
 	setup.creatures = AdventurePlayer.creatures_of(Settings.get_value(KEY_PREFIX + "creatures",
 		AdventurePlayer.CREATURES_NOTICE))
-	setup.life_start = AdventurePlayer.life_start_of(Settings.get_value(KEY_PREFIX + "life_start", null))
+	setup.life_start = AdventurePlayer.life_start_of(Settings.get_value(KEY_PREFIX + "life_start", AdventurePlayer.START_BASE))
 	var ascetic_kept: Variant = Settings.get_value(KEY_PREFIX + "ascetic", false)
 	setup.ascetic = ascetic_kept is bool and bool(ascetic_kept)
 	var life_kept: Variant = Settings.get_value(KEY_PREFIX + "life_checked_at_phase_end", false)

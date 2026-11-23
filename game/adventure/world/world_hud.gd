@@ -72,13 +72,13 @@ signal hovered
 ## own tile of glass.
 const FRAME_ICONS := {"gold": Rect2i(58, 552, 84, 46), "food": Rect2i(206, 551, 78, 48),
 	"ankh": Rect2i(326, 552, 70, 46), "book": Rect2i(454, 552, 80, 46)}
-const STRIP: Array[String] = ["gold", "food", "ankh", "book"]
+const STRIP: Array[String] = ["gold", "ankh", "book"]
 const STRIP_NAMES := {"gold": "Gold", "food": "Food", "ankh": "Mana links", "book": "Deck"}
 ## UNDER THE EMBARK'S "BASE 10 + LINKS" (0.50.65; [method
 ## AdventurePlayer.duel_start_life]) the hero's panel and the ankh's tip
 ## say what the duels start at.
 const DUELS_START := "Your duels start at %d life."
-const STRIP_TIPS := {"gold": "Buys cards, food and World Magics in the towns.",
+const STRIP_TIPS := {"gold": "Buys cards, booster packs and World Magics in the towns.",
 	"food": "Eaten as you walk; with none left you walk slower.",
 	"ankh": "Each town whose mana you have linked adds a life in your duels.",
 	"book": "The cards in your deck, of all the cards you own."}
@@ -261,6 +261,7 @@ var _inked := ""
 var _hero_seen := ""
 var _quest_pane: PanelContainer
 var _quest_lines: Label
+var _abandon_quest: Button
 ## The quest's clock and the next duel's gifts beside its lines ([QuestClock]).
 var _quest_clock: QuestClock
 var _gift_icons: HBoxContainer
@@ -482,6 +483,12 @@ func _ready() -> void:
 	_gift_icons.name = "DuelGifts"
 	_gift_icons.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	quest_column.add_child(_gift_icons)
+	_abandon_quest = Button.new()
+	_abandon_quest.text = "Abandon quest"
+	_abandon_quest.pressed.connect(func() -> void:
+		if player != null and Quests.abandon(player):
+			refresh_quest())
+	quest_column.add_child(_abandon_quest)
 	quest_row.add_child(quest_column)
 	_quest_pane.add_child(quest_row)
 	_hero_panel = _panel("HeroPanel")
@@ -590,7 +597,6 @@ func refresh_numbers(ticked := false) -> void:
 	if player == null or _name == null:
 		return
 	_numbers["gold"].text = str(player.gold)
-	_numbers["food"].text = str(player.food)
 	_numbers["ankh"].text = str(_mana_links())
 	var counted := [player.get_instance_id(), player.cards.size(), player.current_deck, _rests]
 	if not ticked or counted != _counted_for:
@@ -778,6 +784,7 @@ func refresh_quest() -> void:
 	_quest_clock.player = player
 	_quest_clock.visible = _quest_clock.wanted()
 	_quest_clock.queue_redraw()
+	_abandon_quest.visible = player != null and Quests.has_quest(player)
 	var gifts := QuestClock.gifts(player)
 	var marks := ",".join(gifts.map(func(gift: Array) -> String: return str(gift[0])))
 	if _quest_lines.text != text or String(_gift_icons.get_meta("marks", "")) != marks:

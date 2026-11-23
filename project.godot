@@ -1,116 +1,37 @@
-; Shandalar — open-source remake of MicroProse's 1997 Magic: The Gathering.
-; Engine target: Godot 4.7 (latest stable line). GDScript only.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
 ;
-; Layout (see docs/CODE_MAP.md for the full map):
-;   engine/  — pure, headless MTG rules engine (no Node/scene dependencies)
-;   cards/   — one file per card, organized by set (see docs/adding-cards.md)
-;   game/    — Godot presentation layer (scenes, UI, adventure mode)
-;   tests/   — GUT test suite (run via ./run_tests.sh)
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
-
-[autoload]
-
-Lifecycle="*res://game/lifecycle.gd"
-; The skin as zips mounted at res://skin — the player's skin zip
-; (`user://skins/`, the `skin_zip` key) and every card pack in the card
-; folder (`user://cardpacks/`), then `skin/original_skin.zip` and
-; `skin/cardart.zip` beside the executable; chosen in Options > Skin,
-; dropped on the window, or fetched by the web build from beside its
-; page. Where the places are is `game/paths.gd`. Before ShellMusic,
-; which reads the skin.
-SkinPack="*res://game/skin_pack.gd"
-; Numbered gameplay packs carry trusted metadata and optional card art,
-; but no scripts. SkinPack mounts the player's own art first; then these
-; are discovered before any scene asks CardRegistry for the pool.
-CardPacks="*res://game/card_packs.gd"
-ShellMusic="*res://game/shell_music.gd"
-; The finger-as-mouse layer for tablets, phones (the web export) and touch
-; laptops. Inert wherever there is no touchscreen unless the player turns
-; it on (Options > Touch controls); see game/input/touch_controls.gd.
-TouchControls="*res://game/input/touch_controls.gd"
-; The controller-as-mouse layer for a Steam Deck in its gamepad layout
-; and any pad on a desk: the left stick moves a pointer, the D-pad hops
-; it between cards and buttons, A clicks, LB is the right button. Inert
-; without a pad unless the player turns it on (Options > Pad pointer);
-; see game/input/pad_controls.gd.
-PadControls="*res://game/input/pad_controls.gd"
-; The on-screen keyboard for a handheld with no keys of its own: a board
-; of keys over the bottom of the window whenever a text field takes the
-; focus, each key one key event down the engine's own path. On by
-; default on a named handheld whose system has no on-screen keyboard
-; (ArkOS, a Steam Deck's desktop), never on a desk, Options > On-screen
-; keyboard; see game/input/screen_keyboard.gd.
-ScreenKeyboard="*res://game/input/screen_keyboard.gd"
 
 [application]
 
 config/name="Shandalar"
-; [QoL] macOS ignores XDG_DATA_HOME. Test wrappers enable this editor-only
-; runtime feature so their user:// never reads or writes the player's profile.
-; Keep integration tests separate from concurrent base and pack checkouts.
-; This feature is never selected by exported player builds.
-config/name.shandalar_test="Shandalar Integration Tests"
-config/version="0.70.8"
-; An Android back gesture is Escape (game/lifecycle.gd), never a quit.
-config/quit_on_go_back=false
 config/description="Open-source remake of MicroProse's 1997 Magic: The Gathering (Shandalar), with a modular GDScript MTG rules engine."
+config/version="0.70.8"
 run/main_scene="res://game/main.tscn"
-; THE PROJECT'S OWN MARK. Godot draws this in the editor, on the window
-; and in the taskbar, so it ships in the pack for the same reason the boot
-; splash does — it is OURS, not 1997 art, and it must be there for a
-; player who has imported nothing. `branding/logo.png` is the
-; full-resolution master; this is the 256px cut a window icon actually
-; wants.
-config/icon="res://game/icon.png"
-; OUR OWN SPLASH, not Godot's. The boot image is shown before a single
-; line of the game runs, so it has to live in the .pck — which is why it
-; is here in game/ and not in assets/ (art is never packed, see
-; docs/player-files.md) and why it is OURS rather than taken from the 1997
-; files: those are the player's own copy and never redistributed.
-;
-; The picture is the owner's own (supplied 2026-09-03, 1920x1080), fitted
-; to 1152x648 because a boot splash is drawn at NATIVE size and centred —
-; anything wider than the window gets cropped, and the window ships at
-; 1280x800. The background is the black the artwork already sits on, so
-; there is no seam around it at any window size.
-boot_splash/bg_color=Color(0, 0, 0, 1)
-boot_splash/image="res://game/boot_splash.png"
-boot_splash/fullsize=false
-boot_splash/use_filter=true
-; HOW LONG THE PICTURE STAYS UP — the owner's playtest of 2026-09-04:
-; "Splash screen could be a bit longer."
-;
-; Godot draws the boot image only while the engine is still loading, so
-; on a fast machine the owner's artwork flashes past. Godot 4.7 has a
-; setting for exactly that — `application/boot_splash/minimum_display_time`,
-; an int in MILLISECONDS (hint `0,100,1,or_greater,suffix:ms`), default 0
-; — so this is ONE KEY AND NO CODE. No splash scene ahead of
-; `run/main_scene`, so the title screen is still the first thing that
-; runs and everything that assumes so (tools/screenshot_tour.gd, the
-; --quit-after smoke in build_release.sh) is untouched.
-;
-; MEASURED, because the number matters (Xvfb, `--quit-after 3`, this
-; project): the wait is ADDED to the load, not overlapped with it —
-; total time to the title screen is about 1.0 s of engine start plus
-; this value.
-;     0 ms -> 1.5 s     1000 ms -> 2.0 s     1500 ms -> 2.5 s
-;            2000 ms -> 3.0 s
-; The owner asked not to make the game slower to reach than about two
-; seconds, so 1000 ms is the largest value that fits: it DOUBLES the time
-; the picture is up (~0.5 s -> ~1.0 s) and holds the total at 2.0 s. It
-; also makes that second deterministic — on a machine faster than this
-; one the load shrinks and the splash would otherwise shrink with it.
-;
-; ONE LINE TO CHANGE if the owner wants more or less of it, and it costs
-; a headless run the same wait (the engine holds even with no window),
-; which is 0.6 s on the test suite and the soak, once per process.
-boot_splash/minimum_display_time=1000
+config/quit_on_go_back=false
 config/features=PackedStringArray("4.7")
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/stretch_mode=0
+boot_splash/image="res://game/boot_splash.png"
+config/icon="res://game/icon.png"
+boot_splash/minimum_display_time=1000
+config/name.shandalar_test="Shandalar Integration Tests"
 
-[editor_plugins]
+[autoload]
 
-enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+Lifecycle="*res://game/lifecycle.gd"
+SkinPack="*res://game/skin_pack.gd"
+CardPacks="*res://game/card_packs.gd"
+ShellMusic="*res://game/shell_music.gd"
+TouchControls="*res://game/input/touch_controls.gd"
+PadControls="*res://game/input/pad_controls.gd"
+ScreenKeyboard="*res://game/input/screen_keyboard.gd"
 
 [display]
 
@@ -118,41 +39,13 @@ window/size/viewport_width=1280
 window/size/viewport_height=800
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-; Phones and tablets hold the game sideways. The 1997 table is a 1280x800
-; landscape design and `expand` only ever adds room at the sides or the
-; top and bottom, never re-flows a column; a portrait phone would draw the
-; table at a third of its width with the hand unreadable. A desktop window
-; ignores this key entirely; a native phone build and a web build's PWA
-; manifest (an app installed to the home screen) read it, a browser TAB
-; does not — the web template locks nothing, so a phone held upright in
-; a browser gets the portrait picture (measured 2026-09-07). 4 is
-; SCREEN_SENSOR_LANDSCAPE: either way up, never portrait (plain
-; landscape, 0, is the engine default and would not even be written
-; here).
 window/handheld/orientation=4
 
-[input]
+[editor_plugins]
 
-; THE DUEL'S KEYS AS ACTIONS (`game/input/controls.gd`, 2026-09-18). The
-; 1997 game's keys were a `match` on keycodes in the duel screen; declaring
-; them here is what makes rebinding (Options > Controls), a controller (the
-; second event of each action is a pad button: RB is the one button, X is
-; Done, B is Cancel, Start the pause menu, Y the hand, Back the log — A
-; is the click and LB the right button of the pad pointer, 2026-09-27,
-; `game/input/pad_controls.gd`) and
-; Steam Input possible. These are the DEFAULTS and the one place they are
-; written; the player's own bindings lay over them from settings.cfg at
-; boot (`Controls.apply`). Keys are keycodes, not physical positions, so
-; the letters read the same on any layout. The deck builder's Ctrl
-; accelerators are the 1997 menu's own and are not here (§6.1).
-;
-; THE ENGINE'S OWN ui_accept AND ui_cancel, given the pad's A and B
-; (2026-09-27). Godot's defaults are keyboard-only for these two, so a
-; D-pad could walk the focus ring over the shell's buttons and nothing on
-; the pad could press one. With the pad pointer on, A and B never reach
-; these (the layer eats A; B is duel_cancel); with it off, A presses the
-; focused button and B closes a mini-menu. The keys are the engine's own,
-; repeated because an override replaces the list.
+enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+
+[input]
 
 ui_accept={
 "deadzone": 0.2,
@@ -236,9 +129,6 @@ duel_screenshot={
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":4194343,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
 ]
 }
-; The duel screen's own options' key (polish pass 2026-10-28,
-; `game/duel/duel_screen_options.gd`): A puts every creature that can
-; attack into the attack. Not on the Options list (`Controls.PANEL_ACTIONS`).
 duel_attack_all={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":65,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
@@ -292,11 +182,6 @@ duel_choice_9={
 
 [rendering]
 
-; Compatibility (OpenGL) renderer — a deliberate platform decision, see
-; docs/duel-screen-design.md: it is what makes Raspberry Pi (and the
-; broadest range of old/weak hardware) a first-class target. This is a 2D
-; card game; nothing here needs Vulkan.
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-; Apple Silicon exports require this import format alongside S3TC/BPTC.
 textures/vram_compression/import_etc2_astc=true

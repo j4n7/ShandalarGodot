@@ -245,8 +245,11 @@ func _after_duel(report: DuelReport) -> void:
 		return
 	duel_step = "over"
 	WorldDuels.world_music(self)
+	var world_screen := get_parent()
 	leave_lair()
-
+	if int(duel_spoils.get("result", LairDuels.WON)) == LairDuels.LOST:
+		if is_instance_valid(world_screen) and world_screen.has_method("_relaxed_return_to_town"):
+			world_screen.call("_relaxed_return_to_town")
 
 ## THE CARDS WON (`Winbak01.pic`): each in 1997's place over its rarity,
 ## "Won These Cards", the win music.

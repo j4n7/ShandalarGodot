@@ -210,7 +210,6 @@ static func _town(hero: AdventurePlayer, slot: int, kind: int) -> Dictionary:
 		return {"kind": "ruled", "slot": slot, "name": name, "subtitle": "Ruled by the " + wizard,
 			"picture": picture, "lines": [RuledTowns.RULED_WORDS % wizard],
 			"actions": [["leave", RuledTowns.NEVER_MIND, true], ["duel", RuledTowns.DUEL, true]]}
-	var price := food_price(kind)
 	var buy := "Buy Cards/Card Hints" if not CardHints.current(hero, slot).is_empty() else "Buy Cards"
 	var trade := CardTrade.town_offer(hero, slot)
 	var fourth: Array = ["wiseman", "Speak to Wise Man", true]
@@ -218,12 +217,15 @@ static func _town(hero: AdventurePlayer, slot: int, kind: int) -> Dictionary:
 		fourth = ["trade", String(trade["words"]), true]
 	elif Quests.offered(hero, slot):
 		fourth = ["quest", "Begin a Quest", true]
+	var actions: Array = [["buy", buy, true], ["deck", "Edit deck/Sell cards", true], fourth,
+		["booster", "Buy Booster Packs", true], ["leave", "Leave the village", true]]
+	if Quests.has_quest(hero) and int(hero.quest.get("type", -1)) == Quests.CARD 			and int(hero.quest.get("destination", -1)) == slot:
+		actions.insert(actions.size() - 1,
+			["deliver", "Deliver quest card", not Quests.card_options(hero).is_empty()])
 	return {"kind": KINDS[clampi(kind - 1, 0, 2)], "slot": slot, "name": name,
 		"subtitle": KINDS[clampi(kind - 1, 0, 2)].capitalize(), "picture": picture,
 		"lines": [] as Array[String],
-		"actions": [["buy", buy, true], ["deck", "Edit deck/Sell cards", true], fourth,
-			["food", "Buy 10 food for %d gold" % price, hero.gold >= price],
-			["leave", "Leave the village", true]]}
+		"actions": actions}
 
 
 static func _castle(hero: AdventurePlayer, slot: int, kind: int) -> Dictionary:
@@ -798,22 +800,140 @@ func choose(action: String) -> void:
 			# ([method WorldScreen._enter_board], [DungeonPane]).
 			if String(place.get("kind", "")) in ["castle", "dungeon"]:
 				left.emit("enter")
-		"food":
-			var kind := int(player.world.sites[int(place["slot"])]["type"])
-			var price := food_price(kind)
-			if player.gold < price:
-				_note.text = "Insufficient Funds"
-				return
-			player.gold -= price
-			player.food += 10
-			# The button stays (it is the one pressed); it dims when the
-			# purse can buy no more.
-			(_choices.get_node("Choice_food") as Button).disabled = player.gold < price
-			_note.text = "You buy 10 food: %d food, %d gold left." % [player.food, player.gold]
+		"booster":
+			_show_booster_menu()
+		"booster_prices":
+			if OS.is_debug_build():
+				_edit_booster_prices()
+		"deliver":
+			_show_quest_card_choices()
+		"booster_back":
+			var slot := int(place.get("slot", -1))
+			var kind := int(player.world.sites[slot]["type"])
+			var fresh := _town(player, slot, kind)
+			place["actions"] = fresh["actions"]
+			show_card("")
+			say([])
+			offer(Array(fresh["actions"]))
 		_:
-			if action.begins_with("deck_"):
+			if action.begins_with("deliver_copy_"):
+				_confirm_quest_card(int(action.trim_prefix("deliver_copy_")))
+			elif action.begins_with("booster_buy_"):
+				var code := action.trim_prefix("booster_buy_")
+				var opened := CampaignBoosters.purchase(player, code, int(place.get("slot", -1)))
+				if bool(opened.get("ok", false)):
+					if get_parent() != null and get_parent().has_method("autosave_later"):
+						get_parent().call("autosave_later")
+					say(["Opened %s!" % String(opened["product"]), ", ".join(opened["cards"])])
+					if not opened["cards"].is_empty():
+						show_card(String(opened["cards"][0]))
+				_show_booster_menu(String(opened.get("message", "")))
+			elif action.begins_with("deck_"):
 				deck_wanted.emit(int(action.trim_prefix("deck_")))
 
+
+## Booster unlocks are separate from card-pack installation. Display
+## the same price that the purchase method actually charges in this town.
+func _show_booster_menu(note_text := "") -> void:
+	var actions: Array = []
+	var slot := int(place.get("slot", -1))
+	for product in CampaignBoosters.available(player):
+		var code := String(product["code"])
+		var ready := CampaignBoosters.ready(code)
+		var price := CampaignBoosters.price_at(player, slot, code)
+		var name := "%s (%d cards): %d gold" % [product["name"], product["count"], price]
+		if not ready:
+			name += " [card pack not enabled]"
+		actions.append(["booster_buy_" + code, name, ready and player.gold >= price])
+	if OS.is_debug_build():
+		actions.append(["booster_prices", "Developer: Edit booster prices", true])
+	actions.append(["booster_back", "Back to town", true])
+	var message := "Your gold: %d. Booster prices are fixed across settlements." % player.gold
+	offer(actions, note_text if note_text != "" else message)
+
+
+## Only present in Godot debug builds. Players cannot edit prices in a
+## normal release build. Changes persist to the Relaxed Campaign user file.
+func _edit_booster_prices() -> void:
+	if not OS.is_debug_build():
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Relaxed Campaign: Booster prices"
+	dialog.ok_button_text = "Save prices"
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(580, 430)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 6)
+	var notice := Label.new()
+	notice.text = "Fixed booster prices in gold. Purchases cost exactly the listed amount in every settlement."
+	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rows.add_child(notice)
+	var fields := {}
+	for product in CampaignBoosters.PRODUCTS:
+		var code := String(product["code"])
+		var line := HBoxContainer.new()
+		var name := Label.new()
+		name.text = "%s (%d):" % [product["name"], product["count"]]
+		name.custom_minimum_size = Vector2(245, 0)
+		line.add_child(name)
+		var field := SpinBox.new()
+		field.min_value = 1
+		field.max_value = CampaignBoosters.MAX_EDITABLE_PRICE
+		field.step = 5
+		field.value = CampaignBoosters.list_price(code)
+		field.custom_minimum_size = Vector2(125, 28)
+		line.add_child(field)
+		fields[code] = field
+		rows.add_child(line)
+	scroll.add_child(rows)
+	dialog.add_child(scroll)
+	dialog.confirmed.connect(func() -> void:
+		var edited := {}
+		for code in fields:
+			edited[code] = int((fields[code] as SpinBox).value)
+		var saved := CampaignBoosters.set_prices(edited)
+		_show_booster_menu("Prices saved." if saved else "Could not save booster prices.")
+		dialog.queue_free())
+	dialog.canceled.connect(func() -> void: dialog.queue_free())
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(640, 500))
+
+
+## Ask for a specific qualifying owned copy rather than silently removing one.
+func _show_quest_card_choices() -> void:
+	var actions: Array = []
+	for index in Quests.card_options(player):
+		var entry := player.cards[index] as Dictionary
+		var name := String(entry["card"])
+		var in_deck := not (entry.get("decks", []) as Array).is_empty()
+		actions.append(["deliver_copy_%d" % index,
+			"%s%s" % [name, " (in a deck)" if in_deck else ""], true])
+	actions.append(["booster_back", "Back to town", true])
+	offer(actions, "Choose which copy to hand over. This cannot be undone.")
+
+func _confirm_quest_card(index: int) -> void:
+	if not (index in Quests.card_options(player)):
+		return
+	var entry := player.cards[index] as Dictionary
+	var name := String(entry["card"])
+	var in_deck := not (entry.get("decks", []) as Array).is_empty()
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Confirm quest delivery"
+	dialog.dialog_text = "Hand over %s?%s" % [name,
+		" This copy is currently used in a deck." if in_deck else ""]
+	add_child(dialog)
+	dialog.confirmed.connect(func() -> void:
+		var slot := int(place.get("slot", -1))
+		var result := Quests.complete_at(player, slot, index)
+		if not result.is_empty():
+			say(Array(result.get("lines", [])))
+			var kind := int(player.world.sites[slot].get("type", 0))
+			offer(Array(_town(player, slot, kind)["actions"]), "Quest completed")
+		else:
+			_show_quest_card_choices()
+		dialog.queue_free())
+	dialog.canceled.connect(func() -> void: dialog.queue_free())
+	dialog.popup_centered()
 
 func note() -> String:
 	return _note.text if _note != null else ""

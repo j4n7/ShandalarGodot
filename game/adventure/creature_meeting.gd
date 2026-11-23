@@ -261,10 +261,7 @@ static func meet(player: AdventurePlayer, row: int, color: int, slot := -1,
 	if stake != "":
 		(meeting["creature_ante"] as Array[String]).append(stake)
 	player.dice = dice.state
-	if usable_cards(player).is_empty():
-		meeting["no_ante"] = true
-		return meeting
-	_draw_hero_ante(player, meeting, 3 if kind == CreatureBook.CASTLE_WIZARD else 1)
+	# Relaxed Campaign: no player stake, even with an empty collection.
 	if kind != CreatureBook.HENCHMAN:
 		meeting["relation"] = relation_of(player, row, color, slot, where)
 		meeting["wins"] = player.wins_against(kind, color)
@@ -480,6 +477,8 @@ static func riddle_answered(player: AdventurePlayer, meeting: Dictionary, right:
 ## the deck in use; the copy staked is the one lost here, found again by
 ## its name if the bag moved.] The names lost.
 static func lose_stake(player: AdventurePlayer, meeting: Dictionary) -> Array[String]:
+	# Preserve all owned cards after a duel or incorrect riddle.
+	return [] as Array[String]
 	var names: Array = meeting.get("hero_ante", [])
 	var places: Array = meeting.get("hero_ante_at", [])
 	var lost: Array[String] = []
@@ -797,21 +796,12 @@ static func duel_config(player: AdventurePlayer, meeting: Dictionary) -> DuelCon
 		prepare_duel(player, meeting)
 	var row := int(meeting["row"])
 	var config := DuelConfig.new()
-	var hero_ante: Array = meeting.get("hero_ante", [])
 	var swap := int(meeting.get("swap_row", 0))
-	var hero_deck: Array = []
-	if swap > 0:
-		hero_deck = CreatureDeck.for_meeting(swap, 0)
-		config.ante_extras[0] = hero_ante.duplicate()
-	else:
-		hero_deck = padded_deck(player, player.deck_cards())
-		config.ante_cards[0] = hero_ante.duplicate()
+	var hero_deck: Array = CreatureDeck.for_meeting(swap, 0) if swap > 0 else padded_deck(player, player.deck_cards())
 	var creature_deck: Array = opponent_deck(meeting, int(meeting.get("filter", 0)))
-	for stake in meeting.get("creature_ante", []):
-		if String(stake) in creature_deck:
-			(config.ante_cards[1] as Array).append(String(stake))
-		else:
-			(config.ante_extras[1] as Array).append(String(stake))
+	# Both named ante arrays stay empty. The underlying engine then refuses
+	# the nine ante-only spells but lets players collect those cards.
+	config.ante = 0
 	config.decks = [hero_deck, creature_deck]
 	config.player_names = [player.name if player.name != "" else "Hero", CreatureBook.duel_name(row)]
 	var deck_name := player.deck_names[player.current_deck] if player.current_deck < player.deck_names.size() else ""
@@ -891,13 +881,9 @@ static func padded_deck(player: AdventurePlayer, cards: Array) -> Array:
 ## 3 Wizard).
 static func ai_for(difficulty: int) -> AiProfile:
 	match clampi(difficulty, 0, 3):
-		1:
-			return AiProfile.magician()
-		2:
-			return AiProfile.sorcerer()
 		3:
 			return AiProfile.wizard()
-	return AiProfile.apprentice()
+	return AiProfile.sorcerer()
 
 
 ## The creature's face (a [PortraitLibrary] id) for the creature fought now.
@@ -915,4 +901,4 @@ static func lines_of(text: String) -> Array[String]:
 ## Regional spells also feed tribute choices; no invisible template mismatch.
 static func opponent_deck(meeting: Dictionary, filter := 0) -> Array:
 	if meeting.has("regional_deck"): return meeting["regional_deck"].duplicate()
-	return CreatureDeck.for_meeting(int(meeting["row"]), filter)
+	return CreatureDeck.for_community_meeting(int(meeting["row"]), filter)

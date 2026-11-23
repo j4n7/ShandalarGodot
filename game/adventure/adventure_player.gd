@@ -438,10 +438,13 @@ var quest := {}
 ## The quest the last town visited offers, `{type, destination, color,
 ## at}` or `{}` (1997's pending offer, unsaved there) ([Quests]).
 var quest_offer := {}
+## Abandoned quests can be offered again when revisiting their original giver.
+var abandoned_quests := {}
 ## The last town whose services the hero used: a town's quest and its wise
 ## man's first words are drawn only on a visit to another (1997's
 ## `g_last_town_services_town_index`, unsaved there).
 var last_town := -1
+var relaxed_last_town := -1
 ## When each town last gave a quest, on the quest clock, by site slot
 ## (`"<slot>"`; the town's `quest_restock_timer`).
 var town_quests := {}
@@ -586,10 +589,10 @@ static func begin(record: Dictionary, made: ShandalarWorld) -> AdventurePlayer:
 	player.difficulty = int(record.get("difficulty", 0))
 	player.card_rule = card_rule_of(record.get("card_rule"), record.get("copy_limit", true))
 	player.life_rule = life_rule_of(record.get("life_rule"))
-	player.card_hold = card_hold_of(record.get("card_hold"))
+	player.card_hold = HOLD_UNLIMITED
 	player.ban_list = ClassicBans.key_of(record.get("ban_list"))
 	player.all_trader_cards = _flag(record.get("all_trader_cards"))
-	player.sieges = sieges_of(record.get("sieges"))
+	player.sieges = SIEGES_NONE
 	player.creatures = creatures_of(record.get("creatures"))
 	player.life_start = life_start_of(record.get("life_start"))
 	player.ascetic = record.get("ascetic") is bool and bool(record.get("ascetic"))
@@ -624,6 +627,9 @@ static func begin(record: Dictionary, made: ShandalarWorld) -> AdventurePlayer:
 	player.world_magics.append(WORLD_MAGICS[own * 2])
 	made.explore_around(made.start_tile())
 	player.treasures_by_the_ban_list()
+	for starter_pack in 2:
+		for card_name in CampaignBoosters.generate("2ed"):
+			player.add_card(card_name)
 	return player
 
 
@@ -1059,7 +1065,9 @@ func to_dict(include_regions := true) -> Dictionary:
 			"mana_links": mana_links(), "record": duel_record()},
 		"record": {"journal": journal, "defeated_wizards": defeated_wizards,
 			"lairs_explored": lairs_explored, "quest": quest, "quest_offer": quest_offer,
-			"last_town": last_town, "town_quests": town_quests, "wise_man": wise_man,
+            "abandoned_quests": abandoned_quests,
+			"last_town": last_town, "relaxed_last_town": relaxed_last_town,
+            "town_quests": town_quests, "wise_man": wise_man,
 			"links_taken": links_taken},
 		"clocks": {"monster_timer": monster_timer, "quest_timer": quest_timer,
 			"siege_timer": siege_timer, "siege_active": siege_active,
@@ -1199,11 +1207,11 @@ static func _read_hero(player: AdventurePlayer, hero: Dictionary) -> void:
 	player.life_rule = life_rule_of(hero.get("life_rule"))
 	# A save from before the Embark's card hold and ban list (2026-10-28):
 	# the 1997 limit it played by, and the default list.
-	player.card_hold = card_hold_of(hero.get("card_hold"))
+	player.card_hold = HOLD_UNLIMITED
 	player.ban_list = ClassicBans.key_of(hero.get("ban_list"))
 	player.all_trader_cards = _flag(hero.get("all_trader_cards"))
 	# A save from before the sieges' pace: as 1997, as it was played.
-	player.sieges = sieges_of(hero.get("sieges"))
+	player.sieges = SIEGES_NONE
 	# A save from before the creatures' way, the starting life and the
 	# ascetic hero (2026-10-29): Hunt, links only, off — as it was played.
 	player.creatures = creatures_of(hero.get("creatures"))
@@ -1362,8 +1370,15 @@ static func _read_record(player: AdventurePlayer, kept: Dictionary) -> void:
 	# short was a script error at every town).
 	player.quest = _quest_record(kept.get("quest"))
 	player.quest_offer = _quest_record(kept.get("quest_offer"))
+	player.abandoned_quests = {}
+	for giver in _object(kept.get("abandoned_quests")):
+		var remembered := _quest_record(_object(kept.get("abandoned_quests"))[giver])
+		if not remembered.is_empty():
+			player.abandoned_quests[String(giver)] = remembered
 	var town := _number(kept.get("last_town"), -1)
 	player.last_town = town if _is_site(town, player.world) else -1
+	var checkpoint := _number(kept.get("relaxed_last_town"), player.last_town)
+	player.relaxed_last_town = checkpoint if _is_site(checkpoint, player.world) else player.last_town
 	player.town_quests = {}
 	var given := _object(kept.get("town_quests"))
 	for key in given:

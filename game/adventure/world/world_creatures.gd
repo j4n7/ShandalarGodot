@@ -323,7 +323,7 @@ static func tick(player: AdventurePlayer, engage := -1) -> Dictionary:
 			# met [ours: 1997 slip — an emptied slot met at 16].
 			continue
 		at = Vector2i(int(held["x"]), int(held["y"]))
-		if _distance(player.position, at) < CONTACT or bumps(player, slot, at, engage):
+		if slot == engage and _distance(player.position, at) < BUMP:
 			out["met"] = slot
 			out["kind"] = "creature"
 			break

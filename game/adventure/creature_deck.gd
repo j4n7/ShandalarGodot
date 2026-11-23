@@ -144,6 +144,63 @@ static func for_meeting(row: int, filter_bits: int) -> Array[String]:
 	return out
 
 
+## The enhanced packs use the original creature identifiers but replace
+## their decks only when an entire playable list is available. Otherwise
+## fall back to the original 1997 deck rather than a truncated mixture.
+static func community_report(row: int, filter_bits: int) -> Dictionary:
+	var original := for_meeting(row, filter_bits)
+	var path := CreatureBook.deck_path(row)
+	if path == "":
+		return {"enhanced": false, "cards": original, "reason": "no original deck"}
+	var stem := path.get_file().get_basename()
+	var aliases := {"azaar_lichlord": "azaar", "crag_hydra": "hydra",
+		"guardian_of_the_tusk": "tusk_guardian", "kzzy_n_the_dragon_lord": "kyzzn",
+		"great_druid": "morgane", "sea_drake": "sea_dragon"}
+	stem = String(aliases.get(stem, stem))
+	var candidate := "res://decks/community/sargent_2009_%s.deck" % stem
+	if not FileAccess.file_exists(candidate):
+		return {"enhanced": false, "cards": original, "reason": "community file absent", "path": candidate}
+	var file := FileAccess.open(candidate, FileAccess.READ)
+	if file == null:
+		return {"enhanced": false, "cards": original, "reason": "cannot read community file", "path": candidate}
+	var parsed := parse_text(file.get_as_text())
+	var cards: Array[String] = []
+	var unknown: Array[String] = []
+	for entry in library_of(parsed, filter_bits):
+		var name := String(entry["name"])
+		if not bool(entry["known"]):
+			unknown.append(name)
+			continue
+		for i in int(entry["count"]):
+			cards.append(name)
+	if cards.size() < 60 or not unknown.is_empty():
+		return {"enhanced": false, "cards": original, "reason": "incomplete/unknown cards",
+			"count": cards.size(), "unknown": unknown, "path": candidate}
+	return {"enhanced": true, "cards": cards, "reason": "validated", "path": candidate}
+
+
+static func for_community_meeting(row: int, filter_bits: int) -> Array[String]:
+	var report := community_report(row, filter_bits)
+	var cards: Array[String] = []
+	cards.assign(report["cards"])
+	return cards
+
+
+## For development diagnostics. The first 55 creature names map to their
+## original decks; the display reports actual accepted community lists.
+static func community_coverage() -> Dictionary:
+	var enhanced: Array[String] = []
+	var fallback: Array[String] = []
+	for row in range(1, 56):
+		var report := community_report(row, 0)
+		if bool(report.get("enhanced", false)):
+			enhanced.append(CreatureBook.name_of(row))
+		else:
+			fallback.append(CreatureBook.name_of(row))
+	return {"enhanced": enhanced, "fallback": fallback,
+		"enhanced_count": enhanced.size(), "fallback_count": fallback.size()}
+
+
 ## THE LIBRARY 1997 LOADS for [param row] under [param filter_bits]: the
 ## lines kept, in order, `{name, count, known}` — a card the game does not
 ## know is kept as 1997 kept it (it counts for the ante's draw) but marked,

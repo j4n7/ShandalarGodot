@@ -392,7 +392,7 @@ static func duel_config(player: AdventurePlayer, pool := 0, rules := {}) -> Duel
 	var r := rules_with(rules)
 	var row := draw_row(player)
 	var config := DuelConfig.new()
-	config.decks = [CreatureMeeting.padded_deck(player, player.deck_cards()), CreatureDeck.for_meeting(row, 0)]
+	config.decks = [CreatureMeeting.padded_deck(player, player.deck_cards()), CreatureDeck.for_community_meeting(row, 0)]
 	var foe := ARZAKON_NAME if String(r["name"]) == ARZAKON_NAME else CreatureBook.duel_name(row)
 	config.player_names = [player.name if player.name != "" else "Hero", foe]
 	var deck_name := player.deck_names[player.current_deck] if player.current_deck < player.deck_names.size() else ""

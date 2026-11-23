@@ -399,7 +399,7 @@ func step() -> bool:
 	var entered := false
 	var d := heading
 	var here := player.tile()
-	var divisor := pace(player.position, d, player.food == 0)
+	var divisor := pace(player.position, d, false)
 	stepped = player.monster_timer % divisor == 0
 	if stepped:
 		var before := player.position
@@ -416,7 +416,6 @@ func step() -> bool:
 			player.position = before
 			stop()
 		if player.monster_timer & 0x1F == 0 and d != 0:
-			player.food = meal(player.food, now)
 			player.journey_time = player.journey_steps() + 1
 			player.quest_timer += 1
 			# Half as often under the sieges' pace "Rare" [ours, the owner's
@@ -442,8 +441,7 @@ func pace(at: Vector2i, d: int, hungry: bool) -> int:
 	var roads := world.road_bits(at.x / 32, at.y / 32)
 	if d != 0 and (roads & (1 << (d - 1)) != 0 or roads & (1 << (back(d) - 1)) != 0):
 		divisor = 1
-	if hungry:
-		divisor = clampi(divisor + 2, 0, 4)
+	# Food is no longer consumed, so hunger never slows movement.
 	return divisor
 
 
@@ -490,6 +488,8 @@ func meal(food: int, tile: Vector2i) -> int:
 func forecast(tiles: Array[Vector2i]) -> PackedByteArray:
 	var fed := PackedByteArray()
 	fed.resize(tiles.size())
+	fed.fill(1)
+	return fed
 	if player == null or player.world == null:
 		return fed
 	var at := player.position

@@ -321,8 +321,9 @@ static func life(player: AdventurePlayer, setup: Dictionary) -> int:
 ## CreatureMeeting.hero_playmat]).
 static func duel_config(player: AdventurePlayer, setup: Dictionary) -> DuelConfig:
 	var config := CreatureMeeting.duel_config(player, meeting_of(player, setup))
+	config.ante = 0
 	config.ante_cards = [[], []]
-	config.ante_extras = [[], (setup.get("rares", []) as Array).duplicate()]
+	config.ante_extras = [[], []]
 	config.lives[1] = life(player, setup)
 	if bool(setup.get("arena", false)):
 		config.player_names[1] = SPECTRE % CreatureBook.duel_name(int(setup["row"]))

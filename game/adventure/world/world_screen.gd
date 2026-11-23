@@ -1334,7 +1334,11 @@ func visit(tile: Vector2i, write := true) -> VisitPane:
 ## visited, its cards, the seller's hint. What the quest's completion said,
 ## `{lines, sound}`, or `{}`.
 func _arrive_in_town(slot: int) -> Dictionary:
-	var arrived := Quests.complete_at(player, slot)
+	# Card quests require an explicit card-copy selection at the town.
+	var pending_card := Quests.has_quest(player) and int(player.quest.get("type", 0)) == Quests.CARD \
+		and int(player.quest.get("destination", -1)) == slot
+	var arrived := {} if pending_card else Quests.complete_at(player, slot)
+	player.relaxed_last_town = slot
 	var name := WorldNames.site_name(world, slot)
 	if arrived.is_empty():
 		player.log_event("visit", "Visited %s" % name)
@@ -1581,7 +1585,10 @@ func _open_ruled_duel(place: Dictionary) -> void:
 				# town the hero arrived at (the entry latch).
 				_entered_tile = Vector2i(-1, -1)
 			soundscape.rest(false)
-			_leave_site(place)
+			if result == WorldEncounters.LOST:
+				_relaxed_return_to_town()
+			else:
+				_leave_site(place)
 		_sync_rest(), CONNECT_ONE_SHOT)
 	_hold()
 
@@ -1659,6 +1666,8 @@ func _board_done(result: Dictionary, place: Dictionary, index: int) -> void:
 		_sync_rest()
 		return
 	var news := DungeonDoors.leave(player, index, result)
+	if bool(result.get("relaxed_defeated", false)):
+		_relaxed_return_to_town()
 	soundscape.rest(false)
 	_leave_site(place)
 	if not news.is_empty():
@@ -2219,6 +2228,8 @@ func _after_meeting(result: int, slot: int) -> void:
 		_sync_rest()
 		return
 	var outcome := WorldCreatures.met(player, slot, result)
+	if result == WorldEncounters.LOST:
+		_relaxed_return_to_town()
 	if _tick_held:
 		_tick_held = false
 		walk.end_tick()
@@ -2229,6 +2240,26 @@ func _after_meeting(result: int, slot: int) -> void:
 	_show_hero()
 	view.queue_redraw()
 	_sync_rest()
+
+
+## THE BESIEGER'S MEETING OVER
+
+## Relaxed Campaign: safe checkpoint without losing inventory or progress.
+func _relaxed_return_to_town() -> void:
+	if player == null or player.world == null:
+		return
+	var slot := player.relaxed_last_town
+	var destination := player.world.start
+	if slot >= 0 and slot < player.world.sites.size():
+		var town: Dictionary = player.world.sites[slot]
+		destination = Vector2i(int(town.get("x", 0)) * 32 + 16, int(town.get("y", 0)) * 32 + 16)
+	player.position = destination
+	if walk != null:
+		walk.stop()
+	_chase = -1
+	player.world.explore_around(player.tile())
+	view.camera = Vector2(player.position)
+	autosave_later()
 
 
 ## THE BESIEGER'S MEETING OVER ([method WorldCreatures.met]'s [param
@@ -2496,7 +2527,10 @@ func engage(slot: int) -> bool:
 	var held := WorldLairs.held_in(player, slot)
 	if not WorldCreatures.is_creature(held) or not _sees(slot):
 		return false
-	if not walk.walk_to(Vector2i(int(held["x"]) / 32, int(held["y"]) / 32)):
+	var at := Vector2i(int(held["x"]), int(held["y"]))
+	if Vector2(player.position).distance_to(Vector2(at)) < WorldCreatures.BUMP:
+		return meet_creature(slot) != null
+	if not walk.walk_to(Vector2i(at.x / 32, at.y / 32)):
 		return false
 	_chase = slot
 	view.camera = view.hero

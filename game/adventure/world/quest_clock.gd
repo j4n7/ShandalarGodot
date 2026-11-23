@@ -32,7 +32,7 @@ func _init() -> void:
 
 ## Whether the clock has anything to show.
 func wanted() -> bool:
-	return player != null and Quests.has_quest(player) and _art.texture("quest_clock") != null
+	return false
 
 
 func _draw() -> void:

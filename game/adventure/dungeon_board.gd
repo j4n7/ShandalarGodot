@@ -1214,6 +1214,15 @@ func _take(player: AdventurePlayer, entry: Dictionary) -> void:
 	if player.world != null:
 		player.world.touch()
 	player.log_event("treasure", "", {"slot": index, "card": card_name})
+	if entry.has("treasure") and index >= DungeonDoors.CASTLES \
+			and not bool(slot.get("relaxed_booster_unlocked", false)) \
+			and (slot.get("cards", []) as Array).is_empty():
+		slot["relaxed_booster_unlocked"] = true
+		player.world.touch()
+		var unlocked := CampaignBoosters.unlock_name(player)
+		if unlocked != "":
+			player.log_event("booster_unlocked", "Unlocked booster: " + unlocked)
+
 	player.add_card(card_name)
 
 

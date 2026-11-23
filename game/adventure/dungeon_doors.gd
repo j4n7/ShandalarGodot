@@ -149,7 +149,7 @@ static func enter(player: AdventurePlayer, index: int) -> Dictionary:
 	for room in ROOMS:
 		WorldCreatures.empty(player, room)
 	return {"index": index, "castle": index < CASTLES, "color": int(slot.get("color", 0)),
-		"tries": int(slot["entered"]) - 1}
+		"tries": 0}
 
 
 ## How often castle or dungeon [param index] was entered (0 never; an old

@@ -177,8 +177,8 @@ static func enter(player: AdventurePlayer, slot: int, again := false) -> Diction
 	if again and not _last.is_empty() and int(_last["slot"]) == slot \
 			and int(_last["player"]) == player.get_instance_id():
 		var kept: Dictionary = _last["entry"]
-		kept["no_ante"] = CreatureMeeting.usable_cards(player).is_empty()
-		var staked := stake(player, slot) if not kept["no_ante"] else {"names": [] as Array[String], "places": [] as Array[int]}
+		kept["no_ante"] = false
+		var staked := {"names": [] as Array[String], "places": [] as Array[int]}
 		kept["hero_ante"] = staked["names"]
 		kept["hero_ante_at"] = staked["places"]
 		if not kept["no_ante"] and int(kept.get("row", 0)) == 0:
@@ -189,19 +189,14 @@ static func enter(player: AdventurePlayer, slot: int, again := false) -> Diction
 	var entry := {"slot": slot, "wizard": TownStatus.ruler(world, slot), "tier": tier(player, slot),
 		"row": 0, "hero_ante": [] as Array[String], "hero_ante_at": [] as Array[int],
 		"creature_ante": [] as Array[String], "no_ante": false}
-	if CreatureMeeting.usable_cards(player).is_empty():
-		entry["no_ante"] = true
-	else:
-		var staked := stake(player, slot)
-		entry["hero_ante"] = staked["names"]
-		entry["hero_ante_at"] = staked["places"]
-		var row := creature(player, slot)
-		entry["row"] = row
-		var dice := MsvcRandom.new(player.dice)
-		var card := creature_stake(row, dice)
-		player.dice = dice.state
-		if card != "":
-			(entry["creature_ante"] as Array[String]).append(card)
+	# The opponent still chooses a reward card, but no stake is posted.
+	var row := creature(player, slot)
+	entry["row"] = row
+	var dice := MsvcRandom.new(player.dice)
+	var card := creature_stake(row, dice)
+	player.dice = dice.state
+	if card != "":
+		(entry["creature_ante"] as Array[String]).append(card)
 	_last = {"player": player.get_instance_id(), "slot": slot, "entry": entry}
 	return entry
 

@@ -456,6 +456,8 @@ static func draw_stake(player: AdventurePlayer, duel: Dictionary) -> bool:
 	duel["hero_ante"] = [] as Array[String]
 	duel["hero_ante_at"] = [] as Array[int]
 	duel["no_ante"] = false
+	# No ante draw, no card confiscation and no game-over for an empty deck.
+	return true
 	var usable := CreatureMeeting.usable_cards(player)
 	if usable.is_empty():
 		duel["no_ante"] = true
@@ -541,15 +543,8 @@ static func duel_config(player: AdventurePlayer, run: Variant, duel: Dictionary)
 	var row := int(duel.get("row", 0))
 	var config := DuelConfig.new()
 	var deck := hero_deck(player, duel)
-	var stake: Array = duel.get("hero_ante", [])
-	for card_name in stake:
-		# The stake comes out of the duel's library (an allowed card); a
-		# record whose stake the deck lacks makes it into the ante instead.
-		if String(card_name) in deck:
-			(config.ante_cards[0] as Array).append(String(card_name))
-		else:
-			(config.ante_extras[0] as Array).append(String(card_name))
-	config.decks = [deck, CreatureDeck.for_meeting(row, 0)]
+	config.ante = 0
+	config.decks = [deck, CreatureDeck.for_community_meeting(row, 0)]
 	config.player_names = [player.name if player.name != "" else "Hero", CreatureBook.duel_name(row)]
 	var deck_name := player.deck_names[player.current_deck] if player.current_deck < player.deck_names.size() else ""
 	config.deck_names = [deck_name if deck_name != "" else "Deck %d" % (player.current_deck + 1),

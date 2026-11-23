@@ -140,6 +140,9 @@ const DRAGON_TIER := 18
 ## town that refuses quests ([TownStatus.refuses_quests]) keeps none (its
 ## dice drawn and its slot 0 emptied all the same, as 1997's were).
 static func arrive(player: AdventurePlayer, slot: int) -> void:
+	if not has_quest(player) and player.abandoned_quests.has(str(slot)):
+		player.quest_offer = (player.abandoned_quests[str(slot)] as Dictionary).duplicate(true)
+		return
 	var world := player.world
 	player.quest_offer = {}
 	var site_type := int(world.sites[slot]["type"])
@@ -285,6 +288,7 @@ static func accept(player: AdventurePlayer, giver: int) -> String:
 		return ""
 	var offer := player.quest_offer
 	player.quest_offer = {}
+	player.abandoned_quests.erase(str(giver))
 	var kind := int(offer["type"])
 	var units := int(UNITS.get(kind, CREATURE_UNITS))
 	var destination := int(offer["destination"])
@@ -292,15 +296,15 @@ static func accept(player: AdventurePlayer, giver: int) -> String:
 		"color": int(offer.get("color", 1)),
 		"data": WorldNames.quadrant(site_tile(player.world, destination).x - player.tile().x,
 			site_tile(player.world, destination).y - player.tile().y),
-		"deadline": player.quest_timer + units * 2 - 1}
+		"deadline": -1}
 	player.town_quests[str(giver)] = player.quest_timer
 	for slot in [destination, giver]:
 		var tile := site_tile(player.world, slot)
 		player.world.explore_around(tile)
 	AdventureTasks.rows(player)
 	player.log_event("quest_begun", "Quest for %s" % WorldNames.site_name(player.world, giver))
-	player.log_clue(WiseMan.reminder(player) + " Deadline: %d local days." % (units / 8), "quest_clue")
-	return "You have %d days to complete the quest." % (units / 8)
+	player.log_clue(WiseMan.reminder(player), "quest_clue")
+	return "Your quest has no deadline."
 
 
 # ---------------------------------------------------------- the quest --
@@ -316,7 +320,7 @@ static func has_quest(player: AdventurePlayer) -> bool:
 ## or a city `pick`, the town's trade: a card of it to be picked, free
 ## ([constant CardTrade.REWARD]) — or `{}` when nothing was completed (a
 ## creature's quest whose creature is not beaten yet among them).
-static func complete_at(player: AdventurePlayer, slot: int) -> Dictionary:
+static func complete_at(player: AdventurePlayer, slot: int, selected_card := -1) -> Dictionary:
 	if not has_quest(player) or int(player.quest["destination"]) != slot:
 		return {}
 	var world := player.world
@@ -343,8 +347,8 @@ static func complete_at(player: AdventurePlayer, slot: int) -> Dictionary:
 			player.amulets[hue] = int(player.amulets.get(hue, 0)) + 1
 			sound = "sfx_reward"
 		CARD:
-			var at := card_for_quest(player)
-			if at < 0:
+			var at := selected_card
+			if not (at in card_options(player)):
 				return {}
 			var card_name := String(player.cards[at]["card"])
 			player.cards.remove_at(at)
@@ -436,10 +440,49 @@ static func card_for_quest(player: AdventurePlayer) -> int:
 	return in_a_deck
 
 
+## All qualifying card copies, including those assigned to a deck.
+static func card_options(player: AdventurePlayer) -> Array[int]:
+	var out: Array[int] = []
+	if not has_quest(player) or int(player.quest.get("type", 0)) != CARD:
+		return out
+	var color_bit := 1 << clampi(int(player.quest.get("color", 1)), 1, 5)
+	var class_bit := card_class(int(player.quest["destination"]))
+	for i in player.cards.size():
+		var entry := player.cards[i] as Dictionary
+		var card_name := String(entry.get("card", ""))
+		if not CardRegistry.has_card(card_name):
+			continue
+		var facts := CardValue.facts(CardRegistry.get_card(card_name))
+		if int(facts.get("color", 0)) & color_bit != 0 and int(facts.get("type", 0)) & class_bit != 0:
+			out.append(i)
+	return out
+
+
+## Penalty-free abandonment, with reoffer at the original giver.
+static func abandon(player: AdventurePlayer) -> bool:
+	if not has_quest(player):
+		return false
+	var old := player.quest.duplicate(true)
+	var giver := int(old.get("giver", -1))
+	player.quest = {}
+	var old_type := int(old["type"])
+	if old_type <= DEFEATED:
+		old_type -= DEFEATED
+	var offer := {"at": giver, "type": old_type,
+		"destination": old["destination"], "color": old.get("color", 1)}
+	player.quest_offer = offer.duplicate(true)
+	player.abandoned_quests[str(giver)] = offer
+	player.town_quests.erase(str(giver))
+	player.log_event("quest_abandoned", "Quest abandoned without penalty")
+	AdventureTasks.rows(player)
+	return true
+
+
 ## THE QUEST'S TIME: when the clock has reached the deadline the quest is
 ## lost — the giver's wise man turns the hero away for good, the journal
 ## says so — and the 1997 words for the screen; "" while it still runs.
 static func check_deadline(player: AdventurePlayer) -> String:
+	return ""
 	if not has_quest(player):
 		return ""
 	if int(player.quest.get("deadline", 0)) > player.quest_timer:

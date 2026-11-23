@@ -139,8 +139,7 @@ static func quest_lines(player: AdventurePlayer) -> Array[String]:
 		_:
 			if kind < 0:
 				lines.append(Quests.reward_line(player))
-	var days := days_left(player)
-	lines.append("%d %s left" % [days, "day" if days == 1 else "days"])
+	lines.append("No deadline")
 	return lines
 
 

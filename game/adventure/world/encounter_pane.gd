@@ -273,7 +273,8 @@ func _meeting_stage() -> void:
 	stage.ground("preduel_" + AdventurePlayer.COLORS[color - 1])
 	stage.creature_face(int(meeting["row"]))
 	stage.ante_plaques()
-	stage.stakes(meeting.get("hero_ante", []), meeting.get("creature_ante", []))
+	# Ante disabled: the opponent's potential reward is not a wager.
+	stage.stakes([], [])
 	stage.purse(player)
 	stage.scroll(WorldStatus.lines(player))
 
@@ -335,6 +336,11 @@ func choose(action: String) -> void:
 
 func _choose_at_meeting(action: String) -> void:
 	match action:
+		"refuse":
+			# The ordinary NO_DUEL completion releases the roaming slot.
+			# No gold or cards are removed.
+			result = NO_DUEL
+			_end()
 		"duel":
 			_to_duel()
 		"pay":
@@ -817,7 +823,18 @@ func say(lines: Array) -> void:
 ## note_text] under them.
 func offer(actions: Array, note_text := "") -> void:
 	PaneStyle.drop_children(_choices)
-	for action in actions:
+	# Relaxed Campaign: decline a roaming duel without paying gold.
+	# Only the roaming meeting menu is changed. Other menus retain
+	# their existing choices and pay rules.
+	var shown_actions: Array = actions
+	if step == "meeting":
+		shown_actions = []
+		for entry in actions:
+			# Do not show a paid bribe alongside the free departure.
+			if String(entry[0]) != "pay":
+				shown_actions.append(entry)
+		shown_actions.append(["refuse", "Leave peacefully (free)", true])
+	for action in shown_actions:
 		var choice := PaneStyle.button(String(action[1]), "Choice_" + String(action[0]), k)
 		choice.disabled = not bool(action[2])
 		choice.pressed.connect(func() -> void: WorldSoundscape.play_from(self, "sfx_button"))
